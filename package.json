@@ -1,0 +1,13 @@
+{
+  "name": "telegram-finance-vercel",
+  "version": "1.0.0",
+  "description": "Telegram Bot for Finance using Vercel & Firebase Firestore",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.16.1",
+    "firebase-admin": "^12.3.0"
+  }
+}

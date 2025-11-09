@@ -1,33 +1,33 @@
 const admin = require('firebase-admin');
 const { Telegraf } = require('telegraf');
 
-// Inisialisasi Firebase Admin SDK (untuk akses Firestore)
-admin.initializeApp();
+// Inisialisasi Firebase Admin SDK (untuk Vercel)
+if (!admin.apps.length) {
+    // Mengambil kunci dari Environment Variable Vercel
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+}
 const db = admin.firestore();
 
-// Ambil token dari environment variables
-const botToken = functions.config().telegram.token;
+// Ambil token dari environment variables Vercel
+const botToken = process.env.TELEGRAM_TOKEN;
 if (!botToken) {
     throw new Error('Telegram token not set in environment config.');
 }
 const bot = new Telegraf(botToken);
 
 // --- HELPER FUNCTION ---
-// Fungsi untuk menghasilkan ID Transaksi yang mudah diingat (misalnya 6 digit)
 const generateTransactionId = () => {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
 };
-
-// Fungsi untuk mendapatkan reference koleksi utama pengguna
 const getCategoriesRef = (chatId) => db.collection('users').doc(chatId.toString()).collection('categories');
-
-// Fungsi untuk mendapatkan reference koleksi transaksi
 const getTransactionsRef = (chatId) => db.collection('users').doc(chatId.toString()).collection('transactions');
 
 // --- 1. MEMBUAT/UPDATE KATEGORI (/tipe) ---
-// Note: /tipe tetap dipertahankan untuk mengatur budget awal
 bot.command('tipe', async (ctx) => {
-    // Expected format: /tipe <NAMA KATEGORI> <JUMLAH BULANAN>
+    // Logic untuk /tipe tetap sama
     const args = ctx.message.text.split(' ').slice(1);
     const categoryName = args[0] ? args[0].toUpperCase() : null;
     const budgetAmount = parseInt(args[1]);
@@ -49,7 +49,7 @@ bot.command('tipe', async (ctx) => {
 
 // --- 2. LOGIKA MENCATAT PEMASUKAN (/masuk) ---
 bot.command('masuk', async (ctx) => {
-    // Expected format: /masuk <JUMLAH> <KATEGORI> [KETERANGAN]
+    // Logic untuk /masuk tetap sama
     const args = ctx.message.text.split(' ').slice(1);
     const amount = parseInt(args[0]);
     const categoryName = args[1] ? args[1].toUpperCase() : 'PEMASUKAN_LAIN';
@@ -70,16 +70,14 @@ bot.command('masuk', async (ctx) => {
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    // Simpan ke koleksi transaksi utama
     await getTransactionsRef(chatId).doc(transactionId).set(transactionData);
-
     ctx.reply(`💰 Pemasukan **${categoryName}** Rp${amount.toLocaleString('id-ID')} dicatat (ID: ${transactionId}).`, { parse_mode: 'Markdown' });
 });
 
 
 // --- 3. LOGIKA MENCATAT PENGELUARAN (/keluar) ---
 bot.command('keluar', async (ctx) => {
-    // Expected format: /keluar <JUMLAH> <KATEGORI> [KETERANGAN]
+    // Logic untuk /keluar tetap sama
     const args = ctx.message.text.split(' ').slice(1);
     const amount = parseInt(args[0]);
     const categoryName = args[1] ? args[1].toUpperCase() : 'NON_BUDGET';
@@ -100,18 +98,17 @@ bot.command('keluar', async (ctx) => {
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    // Simpan ke koleksi transaksi utama
     await getTransactionsRef(chatId).doc(transactionId).set(transactionData);
-
     ctx.reply(`💸 Pengeluaran **${categoryName}** Rp${amount.toLocaleString('id-ID')} dicatat (ID: ${transactionId}).`, { parse_mode: 'Markdown' });
 });
 
 // --- 4. LOGIKA MENAMPILKAN TRANSAKSI TERBARU (/history) ---
 bot.command('history', async (ctx) => {
+    // Logic untuk /history tetap sama
     const chatId = ctx.chat.id;
     const snapshot = await getTransactionsRef(chatId)
         .orderBy('timestamp', 'desc')
-        .limit(10) // Tampilkan 10 transaksi terbaru
+        .limit(10)
         .get();
 
     if (snapshot.empty) {
@@ -127,9 +124,9 @@ bot.command('history', async (ctx) => {
         const date = data.timestamp.toDate().toLocaleDateString('id-ID');
 
         replyMessage += `${sign} **${amountDisplay}** (${data.category}) \n`;
-        replyMessage += `  - ID: ${data.id} | ${date}\n`;
+        replyMessage += `  - ID: ${data.id} | ${date}\n`;
         if (data.description) {
-             replyMessage += `  - Ket: ${data.description}\n`;
+             replyMessage += `  - Ket: ${data.description}\n`;
         }
     });
 
@@ -140,7 +137,7 @@ bot.command('history', async (ctx) => {
 
 // --- 5. LOGIKA REVISI TRANSAKSI (/revisi) ---
 bot.command('revisi', async (ctx) => {
-    // Expected format: /revisi <TRANSACTION_ID>
+    // Logic untuk /revisi tetap sama
     const args = ctx.message.text.split(' ').slice(1);
     const transactionId = args[0] ? args[0].toUpperCase() : null;
     const chatId = ctx.chat.id;
@@ -156,21 +153,17 @@ bot.command('revisi', async (ctx) => {
         return ctx.reply(`❌ Transaksi dengan ID **${transactionId}** tidak ditemukan.`);
     }
 
-    // Hapus transaksi lama
     await transactionRef.delete();
-
     ctx.reply(`✅ Transaksi (ID: ${transactionId}) berhasil *DIHAPUS*.\n\nSekarang Anda dapat memasukkan data yang benar menggunakan /masuk atau /keluar.`, { parse_mode: 'Markdown' });
 });
 
 
 // --- 6. LOGIKA MENAMPILKAN SALDO / LIST KATEGORI (/list) ---
 bot.command('list', async (ctx) => {
+    // Logic untuk /list tetap sama
     const chatId = ctx.chat.id;
 
-    // 1. Ambil semua kategori budget
     const categoriesSnapshot = await getCategoriesRef(chatId).get();
-    
-    // 2. Hitung total pemasukan dan pengeluaran dari koleksi transaksi
     const transactionsSnapshot = await getTransactionsRef(chatId).get();
     
     let totalSpentPerCategory = {};
@@ -185,10 +178,9 @@ bot.command('list', async (ctx) => {
         if (data.type === 'INCOME') {
             totalIncome += amount;
         } else if (data.type === 'EXPENSE') {
-            totalExpense += amount; // Amount sudah negatif
+            totalExpense += amount;
         }
         
-        // Hitung pengeluaran per kategori
         if (data.type === 'EXPENSE') {
             totalSpentPerCategory[category] = (totalSpentPerCategory[category] || 0) + Math.abs(amount);
         }
@@ -196,7 +188,6 @@ bot.command('list', async (ctx) => {
 
     let replyMessage = '*Laporan Keuangan Saat Ini:*\n\n';
 
-    // Laporan Kategori Budget
     if (!categoriesSnapshot.empty) {
         replyMessage += '*--- Budget Bulanan ---\n';
         categoriesSnapshot.forEach(doc => {
@@ -207,19 +198,17 @@ bot.command('list', async (ctx) => {
             const status = remaining >= 0 ? '🟢 Sisa' : '🔴 Overbudget';
             
             replyMessage += `*${doc.id}*\n`;
-            replyMessage += `  - Budget: Rp${budget.toLocaleString('id-ID')}\n`;
-            replyMessage += `  - Terpakai: Rp${spent.toLocaleString('id-ID')}\n`;
-            replyMessage += `  - ${status}: Rp${Math.abs(remaining).toLocaleString('id-ID')}\n\n`;
+            replyMessage += `  - Budget: Rp${budget.toLocaleString('id-ID')}\n`;
+            replyMessage += `  - Terpakai: Rp${spent.toLocaleString('id-ID')}\n`;
+            replyMessage += `  - ${status}: Rp${Math.abs(remaining).toLocaleString('id-ID')}\n\n`;
         });
     }
 
-    // Laporan Kas & Total
     const totalKas = totalIncome + totalExpense;
     replyMessage += '*--- Total Kas ---\n';
     replyMessage += `💰 Pemasukan (Total): Rp${totalIncome.toLocaleString('id-ID')}\n`;
     replyMessage += `💸 Pengeluaran (Total): Rp${Math.abs(totalExpense).toLocaleString('id-ID')}\n`;
     replyMessage += `**Saldo Kas Bersih: Rp${totalKas.toLocaleString('id-ID')}**\n`;
-
 
     ctx.reply(replyMessage, { parse_mode: 'Markdown' });
 });
@@ -227,28 +216,29 @@ bot.command('list', async (ctx) => {
 
 // --- 7. BANTUAN (/help) ---
 bot.command('help', (ctx) => {
+    // Logic untuk /help tetap sama
     const helpMessage = `
 *Panduan Penggunaan Bot Keuangan:*
 
 *1. Pengaturan Budget:*
 /tipe NAMA_KATEGORI JUMLAH_BULANAN
-    Contoh: \`/tipe MAKAN 1500000\`
+    Contoh: \`/tipe MAKAN 1500000\`
 
 *2. Mencatat Transaksi:*
 /masuk JUMLAH KATEGORI [KETERANGAN]
-    Contoh: \`/masuk 500000 BONUS istri\`
+    Contoh: \`/masuk 500000 BONUS istri\`
 /keluar JUMLAH KATEGORI [KETERANGAN]
-    Contoh: \`/keluar 50000 MAKAN siang\`
+    Contoh: \`/keluar 50000 MAKAN siang\`
 
 *3. Laporan & Bantuan:*
 /list
-    Menampilkan semua budget dan saldo kas saat ini.
+    Menampilkan semua budget dan saldo kas saat ini.
 /history
-    Menampilkan 10 transaksi terakhir (bersama ID).
+    Menampilkan 10 transaksi terakhir (bersama ID).
 /revisi ID_TRANSAKSI
-    Menghapus transaksi berdasarkan ID (Gunakan /history untuk melihat ID).
+    Menghapus transaksi berdasarkan ID (Gunakan /history untuk melihat ID).
 /help
-    Menampilkan panduan ini.
+    Menampilkan panduan ini.
 `;
     ctx.reply(helpMessage, { parse_mode: 'Markdown' });
 });
@@ -256,18 +246,20 @@ bot.command('help', (ctx) => {
 
 // Handler untuk pesan yang tidak dikenal
 bot.on('text', (ctx) => {
+    // Logic untuk teks tidak dikenal tetap sama
     if (ctx.message.text.startsWith('/')) {
         ctx.reply('Perintah tidak dikenal. Ketik /help untuk melihat daftar perintah.');
     }
 });
 
 
-// Export Cloud Function yang akan menjadi Webhook
-exports.telegramBot = functions.https.onRequest(async (req, res) => {
+// Export Handler Utama untuk Vercel Functions
+module.exports = async (req, res) => {
     try {
         await bot.handleUpdate(req.body, res);
     } catch (error) {
-        functions.logger.error("Error handling update:", error);
-        res.status(200).send("OK");
+        console.error("Error handling update:", error);
     }
-});
+    // Vercel harus selalu merespons 200 OK
+    res.status(200).send('OK'); 
+};

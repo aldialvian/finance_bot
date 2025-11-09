@@ -3,8 +3,13 @@ const { Telegraf } = require('telegraf');
 
 // Inisialisasi Firebase Admin SDK (untuk Vercel)
 if (!admin.apps.length) {
-    // Mengambil kunci dari Environment Variable Vercel
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    // Mengambil kunci dari Environment Variable Vercel (format BASE64)
+    const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    // Dekode BASE64 kembali ke string JSON
+    const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf8');
+    // Parse JSON
+    const serviceAccount = JSON.parse(serviceAccountJson);
+
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
     });
